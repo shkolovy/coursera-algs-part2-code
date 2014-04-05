@@ -13,28 +13,32 @@ public class SeamCarver {
     private final Picture picture;
     private final double borderPixelEnergy = 195075;
     private double[][] E;
+    private int width;
+    private int height;
+    private boolean isTransposed;
 
     public SeamCarver(Picture picture) {
         this.picture = picture;
-        this.E = new double[height()][width()];
-
-        for(int h = 0; h < height(); h++){
-            for(int w = 0; w < width(); w++){
-                E[h][w] = energy(w, h);
-            }
-        }
+        this.width = picture.width();
+        this.height = picture.height();
+        this.E = new double[this.height][this.width];
+        this.isTransposed = false;
+        fillEnergy();
     }
 
     public Picture picture(){
+        //Picture p = new Picture(1,1);
+        //p.set(1,1, new Color(1,1,1));
+
         return picture;
     }
 
     public int width() {
-        return picture.width();
+        return this.width;
     }
 
     public int height() {
-        return picture.height();
+        return this.height;
     }
 
     public double energy(int x, int y) {
@@ -47,6 +51,34 @@ public class SeamCarver {
         }
 
         return xGradient(x, y) + yGradient(x, y);
+    }
+
+    public int[] findHorizontalSeam() {
+        if(!isTransposed){
+            transpose();
+        }
+
+        return verticalSeam();
+    }
+
+    public int[] findVerticalSeam() {
+        if(isTransposed){
+            transpose();
+        }
+
+        return verticalSeam();
+    }
+
+    public void removeHorizontalSeam(int[] a) {
+        if(width() <= 0 | height() <= 0){
+            throw new IllegalArgumentException();
+        }
+    }
+
+    public void removeVerticalSeam(int[] a) {
+        if(width() <= 0 | height() <= 0){
+            throw new IllegalArgumentException();
+        }
     }
 
     private double yGradient(int x, int y){
@@ -67,74 +99,79 @@ public class SeamCarver {
                 Math.pow(pRight.getBlue() - pLeft.getBlue(), 2);
     }
 
-    public int[] findHorizontalSeam() {
-        double[][] transposeEnergy = new double[width()][height()];
-        for(int i = 0; i < width(); i++){
-            for(int j = 0; j< height(); j++){
+    private void fillEnergy(){
+        for(int h = 0; h < this.height; h++){
+            for(int w = 0; w < this.width; w++){
+                E[h][w] = energy(w, h);
+            }
+        }
+    }
+
+    private void transpose(){
+        int h = this.E[0].length;
+        int w = this.E.length;
+
+        double[][] transposeEnergy = new double[h][w];
+        for(int i = 0; i < h; i++){
+            for(int j = 0; j < w; j++){
                 transposeEnergy[i][j] = E[j][i];
             }
         }
 
-        return findVerticalSeam(transposeEnergy, height(), width());
+        E = transposeEnergy;
+        this.isTransposed = !this.isTransposed;
     }
 
-    private int[] findVerticalSeam(double[][] energies, int width, int height) {
-        int[][] edgeTo = new int[height][width];
-        double[][] energy = new double[height][width];
+    private int[] verticalSeam() {
+        int w = this.E[0].length;
+        int h = this.E.length;
 
-        for(int h = 0; h < height - 1; h++){
-            for(int w = 0; w < width; w++){
-                if(w-1 >= 0){
-                    double tEnergy = energies[h+1][w-1] + energy[h][w];
-                    if(energy[h+1][w-1] == 0 || tEnergy < energy[h+1][w-1]){
-                        edgeTo[h+1][w-1] = w;
-                        energy[h+1][w-1] = tEnergy;
+        int[][] edgeTo = new int[h][w];
+        double[][] energy = new double[h][w];
+
+        for(int i = 0; i < h - 1; i++){
+            for(int j = 0; j < w; j++){
+                if(j-1 >= 0){
+                    double tEnergy = this.E[i+1][j-1] + energy[i][j];
+                    if(energy[i+1][j-1] == 0 || tEnergy < energy[i+1][j-1]){
+                        edgeTo[i+1][j-1] = j;
+                        energy[i+1][j-1] = tEnergy;
                     }
                 }
 
-                if(w+1 < width){
-                    double tEnergy = energies[h+1][w+1] + energy[h][w];
-                    if(energy[h+1][w+1] == 0 || tEnergy < energy[h+1][w+1]){
-                        edgeTo[h+1][w+1] = w;
-                        energy[h+1][w+1] = tEnergy;
+                if(j+1 < w){
+                    double tEnergy = this.E[i+1][j+1] + energy[i][j];
+                    if(energy[i+1][j+1] == 0 || tEnergy < energy[i+1][j+1]){
+                        edgeTo[i+1][j+1] = j;
+                        energy[i+1][j+1] = tEnergy;
                     }
                 }
 
-                double tEnergy = energies[h+1][w] + energy[h][w];
-                if(energy[h+1][w] == 0 || tEnergy < energy[h+1][w]){
-                    edgeTo[h+1][w] = w;
-                    energy[h+1][w] = tEnergy;
+                double tEnergy = this.E[i+1][j] + energy[i][j];
+                if(energy[i+1][j] == 0 || tEnergy < energy[i+1][j]){
+                    edgeTo[i+1][j] = j;
+                    energy[i+1][j] = tEnergy;
                 }
             }
         }
 
-        double minEnergy = 1000000;
+        double minEnergy = Integer.MAX_VALUE;
         int minLastP = 0;
-        for(int i = 0; i < width; i++){
-            if(energy[height - 1][i] < minEnergy){
-                minEnergy = energy[height - 1][i];
+        for(int i = 0; i < w; i++){
+            if(energy[h - 1][i] < minEnergy){
+                minEnergy = energy[h - 1][i];
                 minLastP = i;
             }
         }
 
-        int[] result = new int[height];
+        int[] result = new int[h];
         int a = minLastP;
 
-        for(int i = height - 1; i >= 0; i--){
+        for(int i = h - 1; i >= 0; i--){
             result[i] = a;
             a = edgeTo[i][a];
         }
 
         return result;
-    }
-
-    public int[] findVerticalSeam() {
-        return findVerticalSeam(E, width(), height());
-    }
-
-    public void removeHorizontalSeam(int[] a) {
-    }
-
-    public void removeVerticalSeam(int[] a) {
     }
 }
