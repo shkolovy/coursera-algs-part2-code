@@ -4,26 +4,17 @@ import edu.princeton.cs.introcs.Picture;
 
 import java.awt.*;
 
-/**
- * Created by Superman Petrovich on 4/3/14.
- */
 public class SeamCarver {
-    private Picture picture;
     private final double borderPixelEnergy = 195075;
     private double[][] E;
-    //private Color[][] M;
-    private int width;
-    private int height;
+    private Color[][] M;
     private boolean isTransposed;
 
     public SeamCarver(Picture picture) {
-        this.picture = new Picture(picture);
-        this.width = picture.width();
-        this.height = picture.height();
-        this.E = new double[this.height][this.width];
-        //this.M = new Color[this.height][this.width];
+        this.E = new double[picture.height()][picture.width()];
+        this.M = new Color[this.height()][this.width()];
         this.isTransposed = false;
-        fillM();
+        fillM(picture);
         fillEnergy();
     }
 
@@ -32,35 +23,31 @@ public class SeamCarver {
             transpose();
         }
 
-        int w = this.M[0].length;
-        int h = this.M.length;
+        int w = width();
+        int h = height();
 
-        if(width() != w || height() != h){
-            Picture newPicture = new Picture(w, h);
+        Picture newPicture = new Picture(w, h);
 
-            for(int i = 0; i < h; i++){
-                for(int j = 0; j < w; j++){
-                     newPicture.set(j, i, M[i][j]);
-                }
+        for(int i = 0; i < h; i++){
+            for(int j = 0; j < w; j++){
+                newPicture.set(j, i, M[i][j]);
             }
-
-            this.picture = newPicture;
         }
 
-        return picture;
+        return newPicture;
     }
 
     public int width() {
-        return this.width;
+        return this.E[0].length;
     }
 
     public int height() {
-        return this.height;
+        return this.E.length;
     }
 
     public double energy(int x, int y) {
-        int h = this.M.length;
-        int w = this.M[0].length;
+        int h = height();
+        int w = width();
 
         if (x < 0 || x > w - 1 || y < 0 || y > h - 1) {
             throw new IndexOutOfBoundsException();
@@ -94,7 +81,7 @@ public class SeamCarver {
             transpose();
         }
 
-        validateSeam(a);
+        vs(a);
 
         rVerticalSeam(a);
     }
@@ -104,9 +91,22 @@ public class SeamCarver {
             transpose();
         }
 
-        validateSeam(a);
+        vs(a);
 
         rVerticalSeam(a);
+    }
+
+    private void vs(int[] seam){
+        if (seam.length != this.E.length) {
+            throw new java.lang.IllegalArgumentException();
+        }
+
+        Integer prev = seam[0];
+        for (int i = 0; i < this.E.length; i++) {
+            if (Math.abs(seam[i] - prev) > 1)
+                throw new java.lang.IllegalArgumentException();
+            prev = seam[i];
+        }
     }
 
     private void rVerticalSeam(int[] a){
@@ -129,8 +129,8 @@ public class SeamCarver {
     }
 
     private void refreshEnergy(int[] a) {
-        int h = this.E.length;
-        int w = this.E[0].length;
+        int h = height();
+        int w = width();
 
         for (int i = 0; i < h; i++) {
             for (int j = 0; j < w; j++) {
@@ -138,12 +138,6 @@ public class SeamCarver {
                     E[i][j] = energy(j, i);
                 }
             }
-        }
-    }
-
-    private void validateSeam(int[] a) {
-        if (width() <= 0 || height() <= 0 || a.length != this.E.length) {
-            throw new IllegalArgumentException();
         }
     }
 
@@ -165,17 +159,17 @@ public class SeamCarver {
                 Math.pow(pRight.getBlue() - pLeft.getBlue(), 2);
     }
 
-    private void fillM() {
-        for (int h = 0; h < this.height; h++) {
-            for (int w = 0; w < this.width; w++) {
+    private void fillM(Picture picture) {
+        for (int h = 0; h < height(); h++) {
+            for (int w = 0; w < width(); w++) {
                 M[h][w] = picture.get(w, h);
             }
         }
     }
 
     private void fillEnergy() {
-        for (int h = 0; h < this.height; h++) {
-            for (int w = 0; w < this.width; w++) {
+        for (int h = 0; h < height(); h++) {
+            for (int w = 0; w < width(); w++) {
                 E[h][w] = energy(w, h);
             }
         }
@@ -200,8 +194,8 @@ public class SeamCarver {
     }
 
     private int[] verticalSeam() {
-        int w = this.E[0].length;
-        int h = this.E.length;
+        int w = width();
+        int h = height();
 
         int[][] edgeTo = new int[h][w];
         double[][] energy = new double[h][w];
