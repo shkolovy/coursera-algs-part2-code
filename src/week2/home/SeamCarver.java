@@ -2,148 +2,241 @@ package week2.home;
 
 import edu.princeton.cs.introcs.Picture;
 
-import java.awt.*;
+import java.awt.Color;
 
 public class SeamCarver {
-    private final double borderPixelEnergy = 195075;
-    private double[][] E;
-    private Color[][] M;
-    private boolean isTransposed;
+    private final double BORDER_ENERGY = 195075;
+    private double[][] energies;
+    private int[][] colors;
 
-    public SeamCarver(Picture picture) {
-        this.E = new double[picture.height()][picture.width()];
-        this.M = new Color[this.height()][this.width()];
-        this.isTransposed = false;
-        fillM(picture);
-        fillEnergy();
+    public SeamCarver(Picture pic) {
+        this.energies = new double[pic.height()][pic.width()];
+        this.colors = new int[pic.height()][pic.width()];
+
+        fillColors(pic);
+        fillEnergies();
     }
 
     public Picture picture() {
-        if (isTransposed) {
-            transpose();
-        }
+        Picture pic = new Picture(width(), height());
 
-        int w = width();
-        int h = height();
-
-        Picture newPicture = new Picture(w, h);
-
-        for(int i = 0; i < h; i++){
-            for(int j = 0; j < w; j++){
-                newPicture.set(j, i, M[i][j]);
+        for (int i = 0; i < height(); i++) {
+            for (int j = 0; j < width(); j++) {
+                pic.set(j, i, new Color(colors[i][j]));
             }
         }
 
-        return newPicture;
+        return pic;
     }
 
     public int width() {
-        return this.E[0].length;
+        return this.colors[0].length;
     }
 
     public int height() {
-        return this.E.length;
+        return this.colors.length;
     }
 
     public double energy(int x, int y) {
-        int h = height();
-        int w = width();
-
-        if (x < 0 || x > w - 1 || y < 0 || y > h - 1) {
+        if (x < 0 || x > width() - 1 || y < 0 || y > height() - 1) {
             throw new IndexOutOfBoundsException();
         }
 
-        if (x == 0 || y == 0 || x == w - 1 || y == h - 1) {
-            return borderPixelEnergy;
+        if (x == 0 || y == 0 || x == width() - 1 || y == height() - 1) {
+            return BORDER_ENERGY;
         }
 
         return xGradient(x, y) + yGradient(x, y);
     }
 
-    public int[] findHorizontalSeam() {
-        if (!isTransposed) {
-            transpose();
-        }
-
-        return verticalSeam();
-    }
-
     public int[] findVerticalSeam() {
-        if (isTransposed) {
-            transpose();
-        }
-
-        return verticalSeam();
-    }
-
-    public void removeHorizontalSeam(int[] a) {
-        if (!isTransposed) {
-            transpose();
-        }
-
-        vs(a);
-
-        rVerticalSeam(a);
-    }
-
-    public void removeVerticalSeam(int[] a) {
-        if (isTransposed) {
-            transpose();
-        }
-
-        vs(a);
-
-        rVerticalSeam(a);
-    }
-
-    private void vs(int[] seam){
-        if (seam.length != this.E.length) {
-            throw new java.lang.IllegalArgumentException();
-        }
-
-        Integer prev = seam[0];
-        for (int i = 0; i < this.E.length; i++) {
-            if (Math.abs(seam[i] - prev) > 1)
-                throw new java.lang.IllegalArgumentException();
-            prev = seam[i];
-        }
-    }
-
-    private void rVerticalSeam(int[] a){
-        int h = this.E.length;
-        int w = this.E[0].length;
-
-        for(int i = 0; i < h; i++){
-            Color[] m = new Color[w-1];
-            System.arraycopy(this.M[i], 0, m, 0, a[i]);
-            System.arraycopy(this.M[i], a[i] + 1, m, a[i], m.length - a[i]);
-            this.M[i] = m;
-
-            double[] e = new double[w-1];
-            System.arraycopy(this.E[i], 0, e, 0, a[i]);
-            System.arraycopy(this.E[i], a[i] + 1, e, a[i], e.length - a[i]);
-            this.E[i] = e;
-        }
-
-        refreshEnergy(a);
-    }
-
-    private void refreshEnergy(int[] a) {
-        int h = height();
         int w = width();
+        int h = height();
+
+        int[][] edgeTo = new int[h][w];
+        double[][] weights = new double[h][w];
+
+        for (int i = 0; i < h - 1; i++) {
+            for (int j = 0; j < w; j++) {
+                if (j - 1 >= 0) {
+                    double tEnergy = this.energies[i + 1][j - 1] + weights[i][j];
+                    if (weights[i + 1][j - 1] == 0 || tEnergy < weights[i + 1][j - 1]) {
+                        edgeTo[i + 1][j - 1] = j;
+                        weights[i + 1][j - 1] = tEnergy;
+                    }
+                }
+
+                if (j + 1 < w) {
+                    double tEnergy = this.energies[i + 1][j + 1] + weights[i][j];
+                    if (weights[i + 1][j + 1] == 0 || tEnergy < weights[i + 1][j + 1]) {
+                        edgeTo[i + 1][j + 1] = j;
+                        weights[i + 1][j + 1] = tEnergy;
+                    }
+                }
+
+                double tEnergy = this.energies[i + 1][j] + weights[i][j];
+                if (weights[i + 1][j] == 0 || tEnergy < weights[i + 1][j]) {
+                    edgeTo[i + 1][j] = j;
+                    weights[i + 1][j] = tEnergy;
+                }
+            }
+        }
+
+        double minEnergy = Double.POSITIVE_INFINITY;
+        int minWidthIndex = 0;
+        for (int i = 0; i < w; i++) {
+            if (weights[h - 1][i] < minEnergy) {
+                minEnergy = weights[h - 1][i];
+                minWidthIndex = i;
+            }
+        }
+
+        int[] seam = new int[h];
+        int nextWidthIndex = minWidthIndex;
+
+        for (int i = h - 1; i >= 0; i--) {
+            seam[i] = nextWidthIndex;
+            nextWidthIndex = edgeTo[i][nextWidthIndex];
+        }
+
+        return seam;
+    }
+
+    public int[] findHorizontalSeam() {
+        int w = width();
+        int h = height();
+
+        int[][] edgeTo = new int[h][w];
+        double[][] weights = new double[h][w];
+
+        for (int i = 0; i < w - 1; i++) {
+            for (int j = 0; j < h; j++) {
+                if (j - 1 >= 0) {
+                    double possibleWeight = this.energies[j - 1][i + 1] + weights[j][i];
+                    if (weights[j - 1][i + 1] == 0 || possibleWeight < weights[j - 1][i + 1]) {
+                        edgeTo[j - 1][i + 1] = j;
+                        weights[j - 1][i + 1] = possibleWeight;
+                    }
+                }
+
+                if (j + 1 < h) {
+                    double possibleWeight = this.energies[j + 1][i + 1] + weights[j][i];
+                    if (weights[j + 1][i + 1] == 0 || possibleWeight < weights[j + 1][i + 1]) {
+                        edgeTo[j + 1][i + 1] = j;
+                        weights[j + 1][i + 1] = possibleWeight;
+                    }
+                }
+
+                double possibleWeight = this.energies[j][i + 1] + weights[j][i];
+                if (weights[j][i + 1] == 0 || possibleWeight < weights[j][i + 1]) {
+                    edgeTo[j][i + 1] = j;
+                    weights[j][i + 1] = possibleWeight;
+                }
+            }
+        }
+
+        double minEnergy = Double.POSITIVE_INFINITY;
+        int minHeightIndex = 0;
 
         for (int i = 0; i < h; i++) {
-            for (int j = 0; j < w; j++) {
-                if(j == a[i] || j == a[i] - 1){
-                    E[i][j] = energy(j, i);
+            if (weights[i][w - 1] < minEnergy) {
+                minEnergy = weights[i][w - 1];
+                minHeightIndex = i;
+            }
+        }
+
+        int[] seam = new int[w];
+        int nextHeightIndex = minHeightIndex;
+
+        for (int i = w - 1; i >= 0; i--) {
+            seam[i] = nextHeightIndex;
+            nextHeightIndex = edgeTo[nextHeightIndex][i];
+        }
+
+        return seam;
+    }
+
+    public void removeVerticalSeam(int[] seam) {
+        if (seam.length != height()) {
+            throw new IllegalArgumentException();
+        }
+
+        //either an entry is outside its prescribed range or two adjacent entries differ by more than 1
+        int prev = seam[0];
+        for (int i = 0; i < height(); i++) {
+            if (Math.abs(seam[i] - prev) > 1)
+                throw new IllegalArgumentException();
+            prev = seam[i];
+        }
+
+        int[][] c = new int[height()][width() - 1];
+        double[][] e = new double[height()][width() - 1];
+
+        for (int i = 0; i < height(); i++) {
+            for (int j = 0, t = 0; j < width(); j++) {
+                if (j != seam[i]) {
+                    c[i][t] = this.colors[i][j];
+                    e[i][t] = this.energies[i][j];
+                    t++;
+                }
+            }
+        }
+
+        this.colors = c;
+        this.energies = e;
+
+        //refresh energies
+        for (int i = 0; i < height(); i++) {
+            for (int j = 0; j < width() - 1; j++) {
+                if(j == seam[i] || j == seam[i] - 1){
+                    energies[i][j] = energy(j, i);
+                }
+            }
+        }
+    }
+
+    public void removeHorizontalSeam(int[] seam) {
+        if (seam.length != width()) {
+            throw new IllegalArgumentException();
+        }
+
+        //either an entry is outside its prescribed range or two adjacent entries differ by more than 1
+        int prev = seam[0];
+        for (int i = 0; i < width(); i++) {
+            if (Math.abs(seam[i] - prev) > 1)
+                throw new IllegalArgumentException();
+            prev = seam[i];
+        }
+
+        int[][] c = new int[height() - 1][width()];
+        double[][] e = new double[height() - 1][width()];
+
+        for (int i = 0; i < width(); i++) {
+            for (int j = 0, t = 0; j < height(); j++) {
+                if (j != seam[i]) {
+                    c[t][i] = this.colors[j][i];
+                    e[t][i] = this.energies[j][i];
+                    t++;
+                }
+            }
+        }
+
+        this.colors = c;
+        this.energies = e;
+
+        //refresh energies
+        for (int i = 0; i < width(); i++) {
+            for (int j = 0; j < height() - 1; j++) {
+                if(j == seam[i] || j == seam[i] - 1){
+                    energies[j][i] = energy(i, j);
                 }
             }
         }
     }
 
     private double yGradient(int x, int y) {
-        Color pTop = this.M[y + 1][x];
-        Color pBottom = this.M[y - 1][x];
+        Color pTop = new Color(this.colors[y + 1][x]);
+        Color pBottom = new Color(this.colors[y - 1][x]);
 
         return Math.pow(pTop.getRed() - pBottom.getRed(), 2) +
                 Math.pow(pTop.getGreen() - pBottom.getGreen(), 2) +
@@ -151,102 +244,27 @@ public class SeamCarver {
     }
 
     private double xGradient(int x, int y) {
-        Color pRight = this.M[y][x + 1];
-        Color pLeft = this.M[y][x - 1];
+        Color pRight = new Color(this.colors[y][x + 1]);
+        Color pLeft = new Color(this.colors[y][x - 1]);
 
         return Math.pow(pRight.getRed() - pLeft.getRed(), 2) +
                 Math.pow(pRight.getGreen() - pLeft.getGreen(), 2) +
                 Math.pow(pRight.getBlue() - pLeft.getBlue(), 2);
     }
 
-    private void fillM(Picture picture) {
+    private void fillEnergies() {
         for (int h = 0; h < height(); h++) {
             for (int w = 0; w < width(); w++) {
-                M[h][w] = picture.get(w, h);
+                energies[h][w] = energy(w, h);
             }
         }
     }
 
-    private void fillEnergy() {
+    private void fillColors(Picture pic) {
         for (int h = 0; h < height(); h++) {
             for (int w = 0; w < width(); w++) {
-                E[h][w] = energy(w, h);
+                this.colors[h][w] = pic.get(w, h).getRGB();
             }
         }
-    }
-
-    private void transpose() {
-        int h = this.E[0].length;
-        int w = this.E.length;
-
-        double[][] transposeEnergy = new double[h][w];
-        Color[][] transposeM = new Color[h][w];
-        for (int i = 0; i < h; i++) {
-            for (int j = 0; j < w; j++) {
-                transposeEnergy[i][j] = E[j][i];
-                transposeM[i][j] = M[j][i];
-            }
-        }
-
-        E = transposeEnergy;
-        M = transposeM;
-        this.isTransposed = !this.isTransposed;
-    }
-
-    private int[] verticalSeam() {
-        int w = width();
-        int h = height();
-
-        int[][] edgeTo = new int[h][w];
-        double[][] energy = new double[h][w];
-
-        for (int i = 0; i < h - 1; i++) {
-            for (int j = 0; j < w; j++) {
-                if(i == 0){
-                    energy[i][j] = borderPixelEnergy;
-                }
-
-                if (j - 1 >= 0) {
-                    double tEnergy = this.E[i + 1][j - 1] + energy[i][j];
-                    if (energy[i + 1][j - 1] == 0 || tEnergy < energy[i + 1][j - 1]) {
-                        edgeTo[i + 1][j - 1] = j;
-                        energy[i + 1][j - 1] = tEnergy;
-                    }
-                }
-
-                if (j + 1 < w) {
-                    double tEnergy = this.E[i + 1][j + 1] + energy[i][j];
-                    if (energy[i + 1][j + 1] == 0 || tEnergy < energy[i + 1][j + 1]) {
-                        edgeTo[i + 1][j + 1] = j;
-                        energy[i + 1][j + 1] = tEnergy;
-                    }
-                }
-
-                double tEnergy = this.E[i + 1][j] + energy[i][j];
-                if (energy[i + 1][j] == 0 || tEnergy < energy[i + 1][j]) {
-                    edgeTo[i + 1][j] = j;
-                    energy[i + 1][j] = tEnergy;
-                }
-            }
-        }
-
-        double minEnergy = Double.POSITIVE_INFINITY;
-        int minLastP = 0;
-        for (int i = 0; i < w; i++) {
-            if (energy[h - 1][i] < minEnergy) {
-                minEnergy = energy[h - 1][i];
-                minLastP = i;
-            }
-        }
-
-        int[] result = new int[h];
-        int a = minLastP;
-
-        for (int i = h - 1; i >= 0; i--) {
-            result[i] = a;
-            a = edgeTo[i][a];
-        }
-
-        return result;
     }
 }
